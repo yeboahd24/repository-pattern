@@ -4,3 +4,9 @@ python manage.py migratepython manage.py makemigrations
 python manage.py migrateProcessed 0 tasks
 Processed 0 tasks
 Processed 0 tasks
+Running task: Approved
+Successfully completed task: Approved
+Processed 1 tasks
+Processed 0 tasks
+Processed 0 tasks
+Processed 0 tasks

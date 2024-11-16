@@ -76,10 +76,14 @@ def suggest_mappings_view(request):
     })
 
 @csrf_exempt
+@login_required
 def compare_view(request):
     if request.method == 'POST':
         try:
             start_time = time.time()
+            comparison = None
+            file1_path = None
+            file2_path = None
             
             # Get files from request
             file1 = request.FILES.get('file1')
@@ -89,24 +93,32 @@ def compare_view(request):
                 return JsonResponse({
                     'status': 'error',
                     'message': 'Both files are required'
-                })
-
-            # Save files
-            file1_path = save_uploaded_file(file1)
-            file2_path = save_uploaded_file(file2)
-            
-            # Get comparison fields
-            fields = json.loads(request.POST.get('fields', '[]'))
-            
-            # Create comparison history record
-            comparison = ComparisonHistory.objects.create(
-                user=request.user,
-                file1=file1.name,
-                file2=file2.name,
-                status='in_progress'
-            )
+                }, status=400)
 
             try:
+                # Save files
+                file1_path = save_uploaded_file(file1)
+                file2_path = save_uploaded_file(file2)
+                
+                # Get comparison fields
+                try:
+                    fields_data = json.loads(request.POST.get('fields', '[]'))
+                    fields = {field['source']: field['target'] for field in fields_data}
+                except json.JSONDecodeError:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'Invalid field mapping format'
+                    }, status=400)
+                
+                # Create comparison history record
+                comparison = ComparisonHistory.objects.create(
+                    user=request.user,
+                    file1=file1.name,
+                    file2=file2.name,
+                    status='in_progress',
+                    execution_time=0  # We'll update this later
+                )
+
                 # Run comparison
                 service = FileComparerService()
                 result = service.compare_files(file1_path, file2_path, fields)
@@ -121,22 +133,44 @@ def compare_view(request):
                 # Update user stats
                 user_stats, _ = UserStats.objects.get_or_create(
                     user=request.user,
-                    defaults={'subscription_type': 'free', 'comparisons_limit': 100}
+                    defaults={
+                        'total_comparisons': 0,
+                        'comparisons_this_month': 0,
+                        'total_time_saved': 0,
+                        'subscription_type': 'Free'
+                    }
                 )
                 user_stats.total_comparisons += 1
-                user_stats.comparisons_used += 1
-                user_stats.total_time_saved += execution_time
+                user_stats.comparisons_this_month += 1
+                user_stats.total_time_saved += (execution_time / 3600)  # Convert to hours
                 user_stats.save()
 
                 return JsonResponse({
                     'status': 'success',
-                    'result': result
+                    'comparison_id': comparison.id,
+                    'result': result,
+                    'execution_time': execution_time,
+                    'differences_found': comparison.differences_found
                 })
 
             except Exception as e:
-                comparison.status = 'failed'
-                comparison.save()
+                if comparison:
+                    comparison.status = 'failed'
+                    comparison.save()
                 raise e
+
+            finally:
+                # Clean up temporary files
+                if file1_path and os.path.exists(file1_path):
+                    try:
+                        os.remove(file1_path)
+                    except:
+                        pass
+                if file2_path and os.path.exists(file2_path):
+                    try:
+                        os.remove(file2_path)
+                    except:
+                        pass
 
         except Exception as e:
             return JsonResponse({
@@ -144,7 +178,7 @@ def compare_view(request):
                 'message': str(e)
             }, status=500)
 
-    return render(request, 'comparer/compare.html')
+    return render(request, 'comparer/upload.html')
 
 @csrf_exempt
 def manage_mappings_view(request):
@@ -234,8 +268,37 @@ def debug_mappings(request):
         ]
     })
 
+@login_required
 def result_view(request):
-    return render(request, 'comparer/result.html')
+    comparison_id = request.GET.get('comparison_id')
+    if not comparison_id:
+        messages.error(request, 'No comparison ID provided')
+        return redirect('comparer:upload')
+    
+    try:
+        comparison = ComparisonHistory.objects.get(id=comparison_id, user=request.user)
+        if comparison.status == 'failed':
+            messages.error(request, 'Comparison failed to complete')
+            return redirect('comparer:upload')
+            
+        # Get the results from localStorage (passed from upload page)
+        context = {
+            'comparison': comparison,
+            'results': {
+                'total_rows': {
+                    'file1': comparison.file1,
+                    'file2': comparison.file2
+                },
+                'execution_time': comparison.execution_time,
+                'differences_found': comparison.differences_found
+            }
+        }
+        
+        return render(request, 'comparer/result.html', context)
+        
+    except ComparisonHistory.DoesNotExist:
+        messages.error(request, 'Comparison not found')
+        return redirect('comparer:upload')
 
 @require_http_methods(["POST"])
 def download_results(request):

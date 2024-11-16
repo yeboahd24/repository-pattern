@@ -94,7 +94,7 @@ class ComparisonHistory(models.Model):
         ('in_progress', 'In Progress')
     ])
     differences_found = models.IntegerField(default=0)
-    execution_time = models.FloatField(help_text='Execution time in seconds')
+    execution_time = models.FloatField(help_text='Execution time in seconds', null=True, blank=True)
 
     class Meta:
         ordering = ['-comparison_date']

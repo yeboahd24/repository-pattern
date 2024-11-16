@@ -162,15 +162,18 @@
         formData.append('file2', document.getElementById('file2').files[0]);
 
         // Get all field mappings
-        const fieldMappings = {};
+        const fields = [];
         document.querySelectorAll('.field-input').forEach(field => {
             const inputs = field.querySelectorAll('input');
             if (inputs.length === 2) {
-                fieldMappings[inputs[0].value] = inputs[1].value;
+                fields.push({
+                    source: inputs[0].value,
+                    target: inputs[1].value
+                });
             }
         });
 
-        formData.append('fieldMappings', JSON.stringify(fieldMappings));
+        formData.append('fields', JSON.stringify(fields));
 
         try {
             const response = await fetch('{% url "comparer:compare" %}', {
@@ -181,32 +184,30 @@
                 body: formData
             });
 
+            const contentType = response.headers.get('content-type');
+            
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error comparing files');
+                } else {
+                    throw new Error('Error comparing files');
+                }
             }
 
-            // Get the response data
-            const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
                 const data = await response.json();
-                if (data.error) {
-                    throw new Error(data.error);
+                if (data.status === 'success') {
+                    // Store results and redirect to results page
+                    localStorage.setItem('comparisonResults', JSON.stringify(data.result));
+                    window.location.href = "{% url 'comparer:result' %}" + "?comparison_id=" + data.comparison_id;
+                } else {
+                    throw new Error(data.message || 'Error comparing files');
                 }
+            } else {
+                throw new Error('Invalid response format');
             }
-
-            // Replace the current page with the response
-            document.documentElement.innerHTML = await response.text();
-            
-            // Reinitialize any necessary scripts
-            const scripts = document.getElementsByTagName('script');
-            for (let script of scripts) {
-                if (!script.src) {  // Only re-execute inline scripts
-                    eval(script.innerHTML);
-                }
-            }
-
         } catch (error) {
-            console.error('Error:', error);
             alert('Error comparing files: ' + error.message);
         }
     });

@@ -260,51 +260,68 @@ class FileComparerService:
             return ''
         return str(value).strip().lower()
 
-    def compare_files(self, file1_path: str, file2_path: str, fields: List[str]) -> Dict[str, Any]:
-        """Compare two files based on specified fields"""
-        df1 = self.read_file(file1_path)
-        df2 = self.read_file(file2_path)
-        
-        # Get suggested mappings
-        suggested_mappings = self.suggest_field_mappings(df1, df2)
-        
-        results = {
-            'total_rows': {
-                'file1': len(df1),
-                'file2': len(df2)
-            },
-            'differences': [],
-            'suggested_mappings': suggested_mappings
-        }
-        
-        for field in fields:
-            try:
-                col1 = self.find_matching_column(df1, field)
-                col2 = self.find_matching_column(df2, field)
-                
-                # Compare values
-                values1 = set(df1[col1].astype(str).str.lower().str.strip())
-                values2 = set(df2[col2].astype(str).str.lower().str.strip())
-                
-                only_in_1 = values1 - values2
-                only_in_2 = values2 - values1
-                matching_values = values1.intersection(values2)
-                
-                results['differences'].append({
-                    'field_type': field,
-                    'file1_field': col1,
-                    'file2_field': col2,
-                    'only_in_file1': sorted(list(only_in_1)),
-                    'only_in_file2': sorted(list(only_in_2)),
-                    'matching_values': sorted(list(matching_values)),
-                    'matching_count': len(matching_values),
-                    'different_count': len(only_in_1) + len(only_in_2)
-                })
-                
-            except ValueError as e:
-                results['differences'].append({
-                    'field_type': field,
-                    'error': str(e)
-                })
-        
-        return results
+    def compare_files(self, file1_path, file2_path, fields):
+        """Compare two files based on specified field mappings."""
+        try:
+            # Read files
+            df1 = self.read_file(file1_path)
+            df2 = self.read_file(file2_path)
+            
+            results = {
+                'total_rows': {
+                    'file1': len(df1),
+                    'file2': len(df2)
+                },
+                'differences': []
+            }
+            
+            # Compare each field mapping
+            for source_field, target_field in fields.items():
+                if source_field in df1.columns and target_field in df2.columns:
+                    # Get unique values from both fields
+                    values1 = set(df1[source_field].dropna().astype(str))
+                    values2 = set(df2[target_field].dropna().astype(str))
+                    
+                    # Find matching and different values
+                    matching_values = values1.intersection(values2)
+                    only_in_file1 = values1 - values2
+                    only_in_file2 = values2 - values1
+                    
+                    # Get rows with different values
+                    different_values = []
+                    merged = pd.merge(df1[[source_field]], df2[[target_field]], 
+                                    left_on=source_field, right_on=target_field, 
+                                    how='outer', indicator=True)
+                    
+                    # Find rows that don't match
+                    diff_rows = merged[merged['_merge'] != 'both']
+                    for _, row in diff_rows.iterrows():
+                        different_values.append({
+                            'file1_value': str(row[source_field]) if pd.notna(row[source_field]) else None,
+                            'file2_value': str(row[target_field]) if pd.notna(row[target_field]) else None
+                        })
+                    
+                    field_diff = {
+                        'field_type': source_field,
+                        'file1_field': source_field,
+                        'file2_field': target_field,
+                        'matching_values': list(matching_values),
+                        'only_in_file1': list(only_in_file1),
+                        'only_in_file2': list(only_in_file2),
+                        'different_values': different_values
+                    }
+                    
+                    results['differences'].append(field_diff)
+                else:
+                    # Handle missing columns
+                    results['differences'].append({
+                        'field_type': source_field,
+                        'file1_field': source_field,
+                        'file2_field': target_field,
+                        'error': f"Column not found: {source_field if source_field not in df1.columns else target_field}"
+                    })
+            
+            return results
+            
+        except Exception as e:
+            raise Exception(f"Error comparing files: {str(e)}")

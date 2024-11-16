@@ -22,149 +22,208 @@
     <div class="summary-card">
         <h3 class="h4 mb-4">Summary Overview</h3>
         <div class="row">
+            <div class="col-md-4">
+                <div class="stats-box">
+                    <div class="stats-label">File 1</div>
+                    <div class="stats-value">{{ comparison.file1 }}</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-box">
+                    <div class="stats-label">File 2</div>
+                    <div class="stats-value">{{ comparison.file2 }}</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-box">
+                    <div class="stats-label">Differences Found</div>
+                    <div class="stats-value">{{ comparison.differences_found }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
             <div class="col-md-6">
                 <div class="stats-box">
-                    <div class="stats-label">File 1 Total Rows</div>
-                    <div class="stats-value">{{ results.total_rows.file1 }}</div>
+                    <div class="stats-label">Execution Time</div>
+                    <div class="stats-value">{{ comparison.execution_time|floatformat:2 }} seconds</div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="stats-box">
-                    <div class="stats-label">File 2 Total Rows</div>
-                    <div class="stats-value">{{ results.total_rows.file2 }}</div>
+                    <div class="stats-label">Status</div>
+                    <div class="stats-value">{{ comparison.status|title }}</div>
                 </div>
             </div>
         </div>
     </div>
 
-    {% for diff in results.differences %}
-    <div class="field-section">
-        <div class="field-header">
-            <h4>
-                <i class="bi bi-diagram-2"></i>
-                Field Type: {{ diff.field_type }}
-            </h4>
-            {% if diff.error %}
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    Error: {{ diff.error }}
-                </div>
-            {% else %}
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="stats-box">
-                            <div class="stats-label">File 1 Field</div>
-                            <div class="stats-value">{{ diff.file1_field }}</div>
-                        </div>
-                        <div class="stats-box">
-                            <div class="stats-label">Matching Values</div>
-                            <div class="stats-value">{{ diff.matching_count }}</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="stats-box">
-                            <div class="stats-label">File 2 Field</div>
-                            <div class="stats-value">{{ diff.file2_field }}</div>
-                        </div>
-                        <div class="stats-box">
-                            <div class="stats-label">Different Values</div>
-                            <div class="stats-value">{{ diff.different_count }}</div>
-                        </div>
-                    </div>
-                </div>
-            {% endif %}
-        </div>
-
-        {% if not diff.error %}
-            {% if diff.matching_values %}
-            <div class="mb-4">
-                <h5 class="section-title">
-                    <i class="bi bi-check-circle"></i>
-                    Matching Values
-                </h5>
-                {% for value in diff.matching_values %}
-                <div class="value-row match">
-                    <div class="row">
-                        <div class="col">{{ value }}</div>
-                        <div class="col">{{ value }}</div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            {% if diff.only_in_file1 %}
-            <div class="mb-4">
-                <h5 class="section-title">
-                    <i class="bi bi-file-earmark-diff"></i>
-                    Values Only in File 1
-                </h5>
-                {% for value in diff.only_in_file1 %}
-                <div class="value-row difference">
-                    <div class="row">
-                        <div class="col">{{ value }}</div>
-                        <div class="col text-muted"><em>Not Present</em></div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            {% if diff.only_in_file2 %}
-            <div class="mb-4">
-                <h5 class="section-title">
-                    <i class="bi bi-file-earmark-diff"></i>
-                    Values Only in File 2
-                </h5>
-                {% for value in diff.only_in_file2 %}
-                <div class="value-row difference">
-                    <div class="row">
-                        <div class="col text-muted"><em>Not Present</em></div>
-                        <div class="col">{{ value }}</div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        {% endif %}
+    <div id="comparisonResults" class="mt-4">
+        <!-- Results will be populated by JavaScript -->
     </div>
-    {% endfor %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    async function downloadResults() {
-        try {
-            const response = await fetch('/download/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    results: {{ results|safe }}
-                })
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get results from localStorage
+        const results = JSON.parse(localStorage.getItem('comparisonResults'));
+        const resultsContainer = document.getElementById('comparisonResults');
+        
+        if (results && results.differences) {
+            results.differences.forEach(diff => {
+                const diffSection = document.createElement('div');
+                diffSection.className = 'field-section mb-4';
+                diffSection.innerHTML = `
+                    <h4 class="mb-3">Field: ${diff.field_type}</h4>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="stats-box">
+                                <div class="stats-label">File 1 Field</div>
+                                <div class="stats-value">${diff.file1_field}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="stats-box">
+                                <div class="stats-label">File 2 Field</div>
+                                <div class="stats-value">${diff.file2_field}</div>
+                            </div>
+                        </div>
+                    </div>
+                    ${renderDiffDetails(diff)}
+                `;
+                resultsContainer.appendChild(diffSection);
             });
-
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `comparison_results_${new Date().toISOString().slice(0,19).replace(/[:-]/g, '')}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to download results. Please try again.');
         }
+    });
+
+    function renderDiffDetails(diff) {
+        let html = '';
+        
+        // Show different values first
+        if (diff.only_in_file1 && diff.only_in_file1.length > 0) {
+            html += `
+                <div class="mt-3">
+                    <h5>Values Only in File 1 (${diff.only_in_file1.length})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${diff.only_in_file1.map(value => `
+                                    <tr>
+                                        <td>${value}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (diff.only_in_file2 && diff.only_in_file2.length > 0) {
+            html += `
+                <div class="mt-3">
+                    <h5>Values Only in File 2 (${diff.only_in_file2.length})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${diff.only_in_file2.map(value => `
+                                    <tr>
+                                        <td>${value}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (diff.different_values && diff.different_values.length > 0) {
+            html += `
+                <div class="mt-3">
+                    <h5>Different Values (${diff.different_values.length})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>File 1 Value</th>
+                                    <th>File 2 Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${diff.different_values.map(d => `
+                                    <tr>
+                                        <td>${d.file1_value || '-'}</td>
+                                        <td>${d.file2_value || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Show matching values last
+        if (diff.matching_values && diff.matching_values.length > 0) {
+            html += `
+                <div class="mt-3">
+                    <h5>Matching Values (${diff.matching_values.length})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${diff.matching_values.map(value => `
+                                    <tr>
+                                        <td>${value}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        return html;
+    }
+
+    function downloadResults() {
+        const results = JSON.parse(localStorage.getItem('comparisonResults'));
+        if (!results) {
+            alert('No results available to download');
+            return;
+        }
+
+        // Convert results to CSV format
+        let csv = 'Field Type,File 1 Field,File 2 Field,Differences Found\n';
+        results.differences.forEach(diff => {
+            csv += `${diff.field_type},${diff.file1_field},${diff.file2_field},${diff.differences.length}\n`;
+        });
+
+        // Create and trigger download
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.setAttribute('href', url);
+        a.setAttribute('download', 'comparison_results.csv');
+        a.click();
+        window.URL.revokeObjectURL(url);
     }
 </script>
 {% endblock %}
