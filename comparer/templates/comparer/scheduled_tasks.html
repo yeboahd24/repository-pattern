@@ -1,0 +1,449 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Scheduled Tasks - File Comparer Pro{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Scheduled Tasks</h2>
+            <p class="text-muted">Manage your automated file comparison tasks</p>
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newTaskModal">
+                <i class="fas fa-plus"></i> New Task
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Frequency</th>
+                                    <th>Source Path</th>
+                                    <th>Target Path</th>
+                                    <th>Last Run</th>
+                                    <th>Next Run</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in tasks %}
+                                <tr data-task-id="{{ task.id }}">
+                                    <td>{{ task.name }}</td>
+                                    <td>{{ task.get_frequency_display }}</td>
+                                    <td>{{ task.source_path }}</td>
+                                    <td>{{ task.target_path }}</td>
+                                    <td>{{ task.last_run|default:"Never" }}</td>
+                                    <td>{{ task.next_run }}</td>
+                                    <td>
+                                        <span class="badge {% if task.status == 'active' %}bg-success{% elif task.status == 'paused' %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ task.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            {% if task.status == 'active' %}
+                                            <button class="btn btn-sm btn-warning" onclick="updateTaskStatus({{ task.id }}, 'paused')">
+                                                <i class="fas fa-pause"></i>
+                                            </button>
+                                            {% else %}
+                                            <button class="btn btn-sm btn-success" onclick="updateTaskStatus({{ task.id }}, 'active')">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            {% endif %}
+                                            <button class="btn btn-sm btn-danger" onclick="deleteTask({{ task.id }})">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center">No scheduled tasks found. Create one to get started!</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Task Modal -->
+<div class="modal fade" id="newTaskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Scheduled Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newTaskForm">
+                    <div class="mb-3">
+                        <label class="form-label">Task Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Source File</label>
+                        <div class="file-input-container">
+                            <input type="file" class="form-control" id="source_file" name="source_file" required>
+                            <small class="text-muted">Supported formats: CSV, Excel, JSON</small>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Target File</label>
+                        <div class="file-input-container">
+                            <input type="file" class="form-control" id="target_file" name="target_file" required>
+                            <small class="text-muted">Supported formats: CSV, Excel, JSON</small>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Frequency</label>
+                        <select class="form-select" name="frequency" required>
+                            <option value="hourly">Hourly</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+
+                    <div id="fieldsContainer" class="mb-3">
+                        <h5>Field Mappings</h5>
+                        <p class="text-muted">Map fields from source file to target file</p>
+                        
+                        <div id="fieldsList">
+                            <div class="field-input mb-2">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" name="field1[]" placeholder="Field from source file" required>
+                                    <span class="input-group-text">→</span>
+                                    <input type="text" class="form-control" name="field2[]" placeholder="Field from target file" required>
+                                    <button type="button" class="btn btn-danger" onclick="removeField(this)">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="addCustomField()">
+                            <i class="fas fa-plus"></i> Add Field Mapping
+                        </button>
+                    </div>
+
+                    <div id="suggestedMappings" style="display: none;" class="mb-3">
+                        <h5>Suggested Mappings</h5>
+                        <p class="text-muted">Based on your files, here are suggested field mappings:</p>
+                        <div id="mappingsList" class="mb-2"></div>
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="applyAllMappings()">
+                            <i class="fas fa-check"></i> Apply All Suggestions
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createTask()">Create Task</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addCustomField() {
+    const fieldInput = document.createElement('div');
+    fieldInput.className = 'field-input mb-2';
+    fieldInput.innerHTML = `
+        <div class="input-group">
+            <input type="text" class="form-control" name="field1[]" placeholder="Field from source file" required>
+            <span class="input-group-text">→</span>
+            <input type="text" class="form-control" name="field2[]" placeholder="Field from target file" required>
+            <button type="button" class="btn btn-danger" onclick="removeField(this)">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    document.getElementById('fieldsList').appendChild(fieldInput);
+}
+
+function removeField(button) {
+    button.closest('.field-input').remove();
+}
+
+function addMapping(field1, field2) {
+    const fieldInput = document.createElement('div');
+    fieldInput.className = 'field-input mb-2';
+    fieldInput.innerHTML = `
+        <div class="input-group">
+            <input type="text" class="form-control" value="${field1}" name="field1[]" readonly>
+            <span class="input-group-text">→</span>
+            <input type="text" class="form-control" value="${field2}" name="field2[]" readonly>
+            <button type="button" class="btn btn-danger" onclick="removeField(this)">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    document.getElementById('mappingsList').appendChild(fieldInput);
+}
+
+function applyAllMappings() {
+    const mappings = document.querySelectorAll('#mappingsList .field-input');
+    const fieldsList = document.getElementById('fieldsList');
+    
+    // Clear existing fields
+    fieldsList.innerHTML = '';
+    
+    // Copy each mapping to the fields list
+    mappings.forEach(mapping => {
+        const field1 = mapping.querySelector('input[name="field1[]"]').value;
+        const field2 = mapping.querySelector('input[name="field2[]"]').value;
+        const fieldInput = document.createElement('div');
+        fieldInput.className = 'field-input mb-2';
+        fieldInput.innerHTML = `
+            <div class="input-group">
+                <input type="text" class="form-control" value="${field1}" name="field1[]" required>
+                <span class="input-group-text">→</span>
+                <input type="text" class="form-control" value="${field2}" name="field2[]" required>
+                <button type="button" class="btn btn-danger" onclick="removeField(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        fieldsList.appendChild(fieldInput);
+    });
+}
+
+async function getSuggestedMappings() {
+    const formData = new FormData();
+    formData.append('file1', document.getElementById('source_file').files[0]);
+    formData.append('file2', document.getElementById('target_file').files[0]);
+
+    try {
+        const response = await fetch('{% url "comparer:suggest_mappings" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.mappings) {
+            // Clear existing mappings
+            document.getElementById('mappingsList').innerHTML = '';
+            
+            // Add each suggested mapping
+            data.mappings.forEach(mapping => {
+                addMapping(mapping.field1, mapping.field2);
+            });
+            
+            // Show the mappings section
+            document.getElementById('suggestedMappings').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error getting mappings:', error);
+    }
+}
+
+function createTask() {
+    const form = document.getElementById('newTaskForm');
+    const formData = new FormData(form);
+    
+    // Get file inputs
+    const sourceFile = document.getElementById('source_file').files[0];
+    const targetFile = document.getElementById('target_file').files[0];
+    
+    if (!sourceFile || !targetFile) {
+        alert('Please select both source and target files');
+        return;
+    }
+    
+    // Add files to form data
+    formData.append('source_file', sourceFile);
+    formData.append('target_file', targetFile);
+
+    // Get all field mappings
+    const mappings = [];
+    document.querySelectorAll('#fieldsList .field-input').forEach(input => {
+        const field1 = input.querySelector('input[name="field1[]"]').value;
+        const field2 = input.querySelector('input[name="field2[]"]').value;
+        if (field1 && field2) {
+            mappings.push({ field1, field2 });
+        }
+    });
+
+    if (mappings.length === 0) {
+        alert('Please add at least one field mapping');
+        return;
+    }
+
+    formData.append('mappings', JSON.stringify(mappings));
+
+    // Send form data to server
+    fetch('{% url "comparer:create_task" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            location.reload();
+        } else {
+            alert('Error creating task: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error creating task: ' + error);
+    });
+}
+
+function updateTaskStatus(taskId, newStatus) {
+    fetch(`/scheduled-task/${taskId}/status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ status: newStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            location.reload();
+        } else {
+            alert('Error updating task status: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error updating task status: ' + error);
+    });
+}
+
+function deleteTask(taskId) {
+    if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+        return;
+    }
+
+    // Show loading state
+    const taskRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
+    if (taskRow) {
+        taskRow.style.opacity = '0.5';
+    }
+
+    fetch(`/scheduled-task/${taskId}/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Show success message
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-success alert-dismissible fade show';
+            alert.innerHTML = `
+                <strong>Success!</strong> ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.row'));
+            
+            // Remove the task row with animation
+            if (taskRow) {
+                taskRow.style.transition = 'opacity 0.3s ease-out';
+                taskRow.style.opacity = '0';
+                setTimeout(() => {
+                    taskRow.remove();
+                    
+                    // Check if there are no tasks left
+                    const tbody = document.querySelector('tbody');
+                    if (tbody.children.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="8" class="text-center">No scheduled tasks found. Create one to get started!</td>
+                            </tr>
+                        `;
+                    }
+                }, 300);
+            }
+        } else {
+            // Show error message
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger alert-dismissible fade show';
+            alert.innerHTML = `
+                <strong>Error!</strong> ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.row'));
+            
+            // Restore opacity if error
+            if (taskRow) {
+                taskRow.style.opacity = '1';
+            }
+        }
+    })
+    .catch(error => {
+        // Show error message
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger alert-dismissible fade show';
+        alert.innerHTML = `
+            <strong>Error!</strong> Failed to delete task: ${error}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.row'));
+        
+        // Restore opacity if error
+        if (taskRow) {
+            taskRow.style.opacity = '1';
+        }
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Listen for file changes to get suggestions
+document.getElementById('source_file').addEventListener('change', () => {
+    if (document.getElementById('target_file').files.length > 0) {
+        getSuggestedMappings();
+    }
+});
+
+document.getElementById('target_file').addEventListener('change', () => {
+    if (document.getElementById('source_file').files.length > 0) {
+        getSuggestedMappings();
+    }
+});
+</script>
+{% endblock %}

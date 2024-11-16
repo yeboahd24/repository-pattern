@@ -126,6 +126,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 import os
 os.makedirs(MEDIA_ROOT / 'uploads', exist_ok=True)
 
+# Authentication settings
+LOGIN_URL = 'comparer:login'
+LOGIN_REDIRECT_URL = 'comparer:dashboard'
+LOGOUT_REDIRECT_URL = 'comparer:login'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 

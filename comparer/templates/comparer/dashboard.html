@@ -37,7 +37,7 @@
                     <i class="bi bi-clock-history"></i>
                     <h3>Scheduled Tasks</h3>
                     <p>Manage automated comparisons</p>
-                    <a href="#" class="btn btn-outline-primary">View Schedule</a>
+                    <a href="{% url 'comparer:scheduled_tasks' %}" class="btn btn-outline-primary">View Schedule</a>
                 </div>
             </div>
             <div class="col-md-3">
@@ -87,14 +87,58 @@
                             <span class="stat-value">{{ user_stats.monthly_comparisons }}</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Accuracy Rate</span>
-                            <span class="stat-value">{{ user_stats.accuracy_rate }}%</span>
-                        </div>
-                        <div class="stat-item">
                             <span class="stat-label">Time Saved</span>
-                            <span class="stat-value">{{ user_stats.time_saved }} hours</span>
+                            <span class="stat-value">{{ user_stats.time_saved|floatformat:1 }} hours</span>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Tasks Section -->
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Active Scheduled Tasks</h5>
+                <a href="{% url 'comparer:scheduled_tasks' %}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus"></i> New Task
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Frequency</th>
+                                <th>Next Run</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in scheduled_tasks %}
+                            <tr>
+                                <td>{{ task.name }}</td>
+                                <td>{{ task.get_frequency_display }}</td>
+                                <td>{{ task.next_run|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <span class="badge {% if task.status == 'active' %}bg-success{% elif task.status == 'paused' %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ task.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{% url 'comparer:scheduled_tasks' %}" class="btn btn-sm btn-outline-primary">Manage</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">No active scheduled tasks. Create one to get started!</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -126,13 +170,14 @@
                                 <td>{{ activity.files|join:", " }}</td>
                                 <td><span class="badge {% if activity.status == 'Completed' %}bg-success{% else %}bg-warning{% endif %}">{{ activity.status }}</span></td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary">View</button>
-                                    {% if activity.status == 'Completed' %}
-                                        <button class="btn btn-sm btn-outline-secondary">Download</button>
-                                    {% else %}
-                                        <button class="btn btn-sm btn-outline-danger">Cancel</button>
+                                    {% if activity.result_id %}
+                                        <a href="{% url 'comparer:result' %}?id={{ activity.result_id }}" class="btn btn-sm btn-outline-primary">View Results</a>
                                     {% endif %}
                                 </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">No recent activity. Start comparing files to see your history!</td>
                             </tr>
                             {% endfor %}
                         </tbody>

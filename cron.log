@@ -1,0 +1,6 @@
+python manage.py makemigrations
+python manage.py migratepython manage.py makemigrations
+python manage.py migratepython manage.py makemigrations
+python manage.py migrateProcessed 0 tasks
+Processed 0 tasks
+Processed 0 tasks
