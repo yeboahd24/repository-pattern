@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Premium Features Header -->
+    <div class="header-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h1>File Comparison Dashboard</h1>
+                    <p class="lead">Professional data comparison and analysis tools</p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <div class="subscription-info">
+                        <span class="badge bg-premium">{{ subscription.type }}</span>
+                        <span class="usage">Usage: {{ subscription.comparisons_used }}/{{ subscription.comparisons_limit }} comparisons</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="container mt-4">
+        <div class="row g-4">
+            <div class="col-md-3">
+                <div class="quick-action-card">
+                    <i class="bi bi-plus-circle"></i>
+                    <h3>New Comparison</h3>
+                    <p>Start a new file comparison</p>
+                    <a href="{% url 'comparer:upload' %}" class="btn btn-primary">Compare Files</a>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="quick-action-card">
+                    <i class="bi bi-clock-history"></i>
+                    <h3>Scheduled Tasks</h3>
+                    <p>Manage automated comparisons</p>
+                    <a href="#" class="btn btn-outline-primary">View Schedule</a>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="quick-action-card">
+                    <i class="bi bi-gear"></i>
+                    <h3>Custom Rules</h3>
+                    <p>Configure comparison rules</p>
+                    <a href="#" class="btn btn-outline-primary">Manage Rules</a>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="quick-action-card">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <h3>Reports</h3>
+                    <p>View comparison history</p>
+                    <a href="#" class="btn btn-outline-primary">View Reports</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Section -->
+    <div class="container mt-5">
+        <div class="row g-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Comparison Analytics</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="comparisonChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Quick Stats</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Comparisons</span>
+                            <span class="stat-value">{{ user_stats.total_comparisons }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">This Month</span>
+                            <span class="stat-value">{{ user_stats.monthly_comparisons }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Accuracy Rate</span>
+                            <span class="stat-value">{{ user_stats.accuracy_rate }}%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Time Saved</span>
+                            <span class="stat-value">{{ user_stats.time_saved }} hours</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Files</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for activity in recent_activity %}
+                            <tr>
+                                <td>{{ activity.date|date:"Y-m-d H:i" }}</td>
+                                <td>{{ activity.type }}</td>
+                                <td>{{ activity.files|join:", " }}</td>
+                                <td><span class="badge {% if activity.status == 'Completed' %}bg-success{% else %}bg-warning{% endif %}">{{ activity.status }}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary">View</button>
+                                    {% if activity.status == 'Completed' %}
+                                        <button class="btn btn-sm btn-outline-secondary">Download</button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-danger">Cancel</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dashboard-container {
+        background-color: #f8f9fa;
+        min-height: 100vh;
+        padding-bottom: 2rem;
+    }
+
+    .header-section {
+        background-color: #fff;
+        padding: 2rem 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        margin-bottom: 2rem;
+    }
+
+    .subscription-info {
+        display: inline-flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .badge.bg-premium {
+        background-color: #ffd700;
+        color: #000;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .quick-action-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .quick-action-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .quick-action-card i {
+        font-size: 2rem;
+        color: #0d6efd;
+        margin-bottom: 1rem;
+    }
+
+    .stat-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+
+    .stat-label {
+        color: #6c757d;
+    }
+
+    .stat-value {
+        font-weight: bold;
+        color: #0d6efd;
+    }
+
+    .table {
+        font-size: 0.9rem;
+        margin-bottom: 0;
+    }
+
+    .badge {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .card {
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    @media (max-width: 768px) {
+        .container {
+            padding: 1rem;
+        }
+        
+        .btn-group-header {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .btn-group-header .btn {
+            width: 100%;
+        }
+
+        .quick-action-card {
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Initialize comparison chart with data from the backend
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ analytics.months|safe }},
+            datasets: [{
+                label: 'Comparisons',
+                data: {{ analytics.monthly_trends|safe }},
+                borderColor: '#0d6efd',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Monthly Comparison Trends'
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

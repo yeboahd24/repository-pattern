@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <h1 class="h2 mb-3 mb-md-0">Comparison Results</h1>
+            <div class="btn-group-header">
+                <button class="btn btn-download" onclick="downloadResults()">
+                    <i class="bi bi-download"></i>
+                    Download Results
+                </button>
+                <a href="{% url 'comparer:upload' %}" class="btn btn-new">
+                    <i class="bi bi-plus-circle"></i>
+                    New Comparison
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="summary-card">
+        <h3 class="h4 mb-4">Summary Overview</h3>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="stats-box">
+                    <div class="stats-label">File 1 Total Rows</div>
+                    <div class="stats-value">{{ results.total_rows.file1 }}</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="stats-box">
+                    <div class="stats-label">File 2 Total Rows</div>
+                    <div class="stats-value">{{ results.total_rows.file2 }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% for diff in results.differences %}
+    <div class="field-section">
+        <div class="field-header">
+            <h4>
+                <i class="bi bi-diagram-2"></i>
+                Field Type: {{ diff.field_type }}
+            </h4>
+            {% if diff.error %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Error: {{ diff.error }}
+                </div>
+            {% else %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="stats-box">
+                            <div class="stats-label">File 1 Field</div>
+                            <div class="stats-value">{{ diff.file1_field }}</div>
+                        </div>
+                        <div class="stats-box">
+                            <div class="stats-label">Matching Values</div>
+                            <div class="stats-value">{{ diff.matching_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="stats-box">
+                            <div class="stats-label">File 2 Field</div>
+                            <div class="stats-value">{{ diff.file2_field }}</div>
+                        </div>
+                        <div class="stats-box">
+                            <div class="stats-label">Different Values</div>
+                            <div class="stats-value">{{ diff.different_count }}</div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if not diff.error %}
+            {% if diff.matching_values %}
+            <div class="mb-4">
+                <h5 class="section-title">
+                    <i class="bi bi-check-circle"></i>
+                    Matching Values
+                </h5>
+                {% for value in diff.matching_values %}
+                <div class="value-row match">
+                    <div class="row">
+                        <div class="col">{{ value }}</div>
+                        <div class="col">{{ value }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if diff.only_in_file1 %}
+            <div class="mb-4">
+                <h5 class="section-title">
+                    <i class="bi bi-file-earmark-diff"></i>
+                    Values Only in File 1
+                </h5>
+                {% for value in diff.only_in_file1 %}
+                <div class="value-row difference">
+                    <div class="row">
+                        <div class="col">{{ value }}</div>
+                        <div class="col text-muted"><em>Not Present</em></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if diff.only_in_file2 %}
+            <div class="mb-4">
+                <h5 class="section-title">
+                    <i class="bi bi-file-earmark-diff"></i>
+                    Values Only in File 2
+                </h5>
+                {% for value in diff.only_in_file2 %}
+                <div class="value-row difference">
+                    <div class="row">
+                        <div class="col text-muted"><em>Not Present</em></div>
+                        <div class="col">{{ value }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function downloadResults() {
+        try {
+            const response = await fetch('/download/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    results: {{ results|safe }}
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `comparison_results_${new Date().toISOString().slice(0,19).replace(/[:-]/g, '')}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to download results. Please try again.');
+        }
+    }
+</script>
+{% endblock %}

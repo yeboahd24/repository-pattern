@@ -1,0 +1,8 @@
+employee_id,first_name,last_name,email,department,salary
+1001,John,Smith,john.smith@company.com,Engineering,85000
+1002,Sarah,Johnson,sarah.j@company.com,Marketing,75000
+1003,Michael,Brown,michael.b@company.com,Engineering,82000
+1004,Emily,Davis,emily.d@company.com,HR,65000
+1005,David,Wilson,david.w@company.com,Sales,78000
+1006,Lisa,Anderson,lisa.a@company.com,Engineering,88000
+1007,James,Taylor,james.t@company.com,Marketing,72000

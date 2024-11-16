@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>File Comparison Tool</h1>
+        <a href="{% url 'comparer:manage_mappings' %}" class="btn btn-primary">Manage Field Mappings</a>
+    </div>
+    
+    <form id="comparisonForm" class="needs-validation" novalidate>
+        {% csrf_token %}
+        <div class="row">
+            <div class="col-md-6">
+                <div class="file-input-container" id="file1Container">
+                    <h3>File 1</h3>
+                    <input type="file" class="form-control" id="file1" name="file1" required>
+                    <small class="text-muted">Supported formats: CSV, Excel, JSON</small>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="file-input-container" id="file2Container">
+                    <h3>File 2</h3>
+                    <input type="file" class="form-control" id="file2" name="file2" required>
+                    <small class="text-muted">Supported formats: CSV, Excel, JSON</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="suggested-mappings" id="suggestedMappings">
+            <h3>Suggested Field Mappings</h3>
+            <p class="text-muted">Based on your files, here are suggested field mappings:</p>
+            <div id="mappingsList"></div>
+        </div>
+
+        <div id="fieldsContainer" class="mt-4">
+            <h3>Comparison Fields</h3>
+            <p class="text-muted">Specify the fields you want to compare between the files</p>
+            
+            <div id="fieldsList">
+                <div class="field-input">
+                    <input type="text" class="form-control" placeholder="Enter field type" required>
+                    <button type="button" class="btn btn-danger btn-sm mt-2" onclick="removeField(this)">Remove</button>
+                </div>
+            </div>
+            
+            <button type="button" class="btn btn-secondary mt-3" onclick="addCustomField()">Add Custom Field</button>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-4">Compare Files</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function addCustomField() {
+        const fieldInput = document.createElement('div');
+        fieldInput.className = 'field-input';
+        fieldInput.innerHTML = `
+            <input type="text" class="form-control" placeholder="Enter field type" required>
+            <button type="button" class="btn btn-danger btn-sm mt-2" onclick="removeField(this)">Remove</button>
+        `;
+        document.getElementById('fieldsList').appendChild(fieldInput);
+    }
+
+    function removeField(button) {
+        button.parentElement.remove();
+    }
+
+    function addMapping(field1, field2) {
+        // Clear the existing fields if this is the first mapping
+        const fieldsList = document.getElementById('fieldsList');
+        if (fieldsList.querySelectorAll('.field-input').length === 1 && 
+            fieldsList.querySelector('input').value === '') {
+            fieldsList.innerHTML = '';
+        }
+
+        const fieldInput = document.createElement('div');
+        fieldInput.className = 'field-input';
+        fieldInput.innerHTML = `
+            <div class="input-group">
+                <input type="text" class="form-control" value="${field1}" name="field1" readonly>
+                <span class="input-group-text">→</span>
+                <input type="text" class="form-control" value="${field2}" name="field2" readonly>
+                <button type="button" class="btn btn-danger" onclick="removeField(this)">Remove</button>
+            </div>
+        `;
+        fieldsList.appendChild(fieldInput);
+    }
+
+    async function getSuggestedMappings() {
+        const formData = new FormData();
+        formData.append('file1', document.getElementById('file1').files[0]);
+        formData.append('file2', document.getElementById('file2').files[0]);
+
+        try {
+            const response = await fetch('{% url "comparer:suggest_mappings" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+            
+            if (data.suggestions) {
+                const mappingsList = document.getElementById('mappingsList');
+                mappingsList.innerHTML = '';
+                
+                let suggestionsHtml = '';
+                data.suggestions.forEach(suggestion => {
+                    const confidence_class = suggestion.confidence > 80 ? 'success' : suggestion.confidence > 50 ? 'warning' : 'danger';
+                    suggestionsHtml += `
+                        <div class="suggestion-item mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${suggestion.field1}</strong> → <strong>${suggestion.field2}</strong>
+                                    <span class="badge bg-${confidence_class}">${suggestion.confidence}% match</span>
+                                    <br>
+                                    <small class="text-muted">
+                                        Type: ${suggestion.type1} → ${suggestion.type2}
+                                    </small>
+                                </div>
+                                <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="addMapping('${suggestion.field1}', '${suggestion.field2}')">
+                                    Use This
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                mappingsList.innerHTML = suggestionsHtml;
+                document.getElementById('suggestedMappings').style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error getting suggestions:', error);
+        }
+    }
+
+    // Listen for file changes to get suggestions
+    document.getElementById('file1').addEventListener('change', () => {
+        if (document.getElementById('file2').files.length > 0) {
+            getSuggestedMappings();
+        }
+    });
+
+    document.getElementById('file2').addEventListener('change', () => {
+        if (document.getElementById('file1').files.length > 0) {
+            getSuggestedMappings();
+        }
+    });
+
+    document.getElementById('comparisonForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData();
+        formData.append('file1', document.getElementById('file1').files[0]);
+        formData.append('file2', document.getElementById('file2').files[0]);
+
+        // Get all field mappings
+        const fieldMappings = {};
+        document.querySelectorAll('.field-input').forEach(field => {
+            const inputs = field.querySelectorAll('input');
+            if (inputs.length === 2) {
+                fieldMappings[inputs[0].value] = inputs[1].value;
+            }
+        });
+
+        formData.append('fieldMappings', JSON.stringify(fieldMappings));
+
+        try {
+            const response = await fetch('{% url "comparer:compare" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            // Get the response data
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+            }
+
+            // Replace the current page with the response
+            document.documentElement.innerHTML = await response.text();
+            
+            // Reinitialize any necessary scripts
+            const scripts = document.getElementsByTagName('script');
+            for (let script of scripts) {
+                if (!script.src) {  // Only re-execute inline scripts
+                    eval(script.innerHTML);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error comparing files: ' + error.message);
+        }
+    });
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+</script>
+{% endblock %}

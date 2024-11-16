@@ -1,0 +1,9 @@
+Account_number,Transaction_description,Date,DR,CR,Running_total,Department
+1001-234,Office Supply Expenses,2024-01-15,450.00,0.00,-450.00,ADMIN
+1002-567,ABC Corporation Payment,2024-01-16,0.00,1200.00,750.00,SALES
+2001-890,Staff Payroll,2024-01-20,5000.00,0.00,-4250.00,HR
+1003-123,Annual Software Subscription,2024-01-22,899.99,0.00,-5149.99,IT
+3001-456,Monthly Utilities,2024-01-25,355.00,0.00,-5504.99,FACILITIES
+1004-789,XYZ Limited Consulting Fees,2024-01-28,0.00,2950.00,-2554.99,CONSULT
+2002-012,Monthly Office Lease,2024-01-30,2000.00,0.00,-4554.99,ADMIN
+4001-345,Equipment Purchase,2024-01-31,1500.00,0.00,-6054.99,IT

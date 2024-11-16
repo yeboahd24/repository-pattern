@@ -1,0 +1,8 @@
+Act_number,Desc,Trans_date,Debit_amt,Credit_amt,Balance,Cost_center
+1001-234,Office Supplies Purchase,2024-01-15,450.00,0.00,-450.00,ADMIN
+1002-567,Client Payment - ABC Corp,2024-01-16,0.00,1200.00,750.00,SALES
+2001-890,Employee Salary Payment,2024-01-20,5000.00,0.00,-4250.00,HR
+1003-123,Software License Renewal,2024-01-22,899.99,0.00,-5149.99,IT
+3001-456,Utility Bill Payment,2024-01-25,350.00,0.00,-5499.99,FACILITIES
+1004-789,Consulting Revenue - XYZ Ltd,2024-01-28,0.00,3000.00,-2499.99,CONSULT
+2002-012,Office Rent Payment,2024-01-30,2000.00,0.00,-4499.99,ADMIN
