@@ -1,12 +1,20 @@
 import pandas as pd
 import json
 import magic
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional, Set
 from fuzzywuzzy import fuzz
 import re
+from .models import FieldMapping
 
 class FileComparerService:
     def __init__(self):
+        # Configuration constants
+        self.FUZZY_MATCH_THRESHOLD = 80  # Minimum similarity score to consider a match
+        self.SUGGESTION_CONFIDENCE_THRESHOLD = 0.4  # Minimum confidence for field mapping suggestions
+        self.CATEGORY_MATCH_BONUS = 0.3
+        self.CATEGORY_MISMATCH_PENALTY = 0.5
+        self.TYPE_MISMATCH_PENALTY = 0.8
+        self.DATE_TYPE_MISMATCH_PENALTY = 0.9
         self.field_mappings = {}
         self.load_field_mappings()
 
@@ -16,6 +24,7 @@ class FileComparerService:
         mappings = FieldMapping.objects.filter(is_active=True)
         for mapping in mappings:
             self.field_mappings[mapping.field_type.lower()] = mapping.variations
+
 
     @staticmethod
     def detect_file_type(file_path: str) -> str:
@@ -48,7 +57,6 @@ class FileComparerService:
 
     def get_field_mappings(self):
         """Get all field mappings."""
-        from .models import FieldMapping
         return FieldMapping.objects.filter(is_active=True).order_by('field_type')
 
     def add_field_mapping_db(self, field_type, variations):
@@ -56,7 +64,8 @@ class FileComparerService:
         from .models import FieldMapping
         mapping = FieldMapping.objects.create(
             field_type=field_type,
-            variations=variations
+            variations=variations,
+            is_active=True
         )
         # Reload mappings after adding new one
         self.load_field_mappings()
@@ -64,7 +73,6 @@ class FileComparerService:
 
     def update_field_mapping(self, mapping_id, field_type, variations):
         """Update an existing field mapping."""
-        from .models import FieldMapping
         mapping = FieldMapping.objects.get(id=mapping_id)
         mapping.field_type = field_type
         mapping.variations = variations
@@ -75,7 +83,6 @@ class FileComparerService:
 
     def delete_field_mapping(self, mapping_id):
         """Delete a field mapping."""
-        from .models import FieldMapping
         mapping = FieldMapping.objects.get(id=mapping_id)
         mapping.delete()
         # Reload mappings after deletion
@@ -196,37 +203,6 @@ class FileComparerService:
             
             return categories
 
-        def calculate_similarity(col1: str, col2: str, type1: str, type2: str) -> float:
-            """Calculate similarity score between two column names and their data types"""
-            # Get categories for both columns
-            cat1 = get_field_category(col1)
-            cat2 = get_field_category(col2)
-            
-            # Base string similarity
-            string_similarity = fuzz.ratio(col1.lower(), col2.lower()) / 100.0
-            
-            # Category match bonus
-            category_match = len(cat1.intersection(cat2)) > 0
-            category_bonus = 0.3 if category_match else 0
-            
-            # Category mismatch penalty
-            category_mismatch = len(cat1) > 0 and len(cat2) > 0 and len(cat1.intersection(cat2)) == 0
-            category_penalty = 0.5 if category_mismatch else 0
-            
-            # Data type match/mismatch
-            type_match = type1 == type2
-            type_penalty = 0.8 if not type_match else 0
-            
-            # Special case: if one is date and other is not, severely penalize
-            if ('date' in (type1, type2)) and type1 != type2:
-                type_penalty = 0.9
-            
-            # Final score
-            final_score = string_similarity + category_bonus - category_penalty - type_penalty
-            
-            # Ensure score is between 0 and 1
-            return max(0, min(1, final_score))
-
         # Cache column types
         col_types1 = {col: self.detect_column_type(df1[col]) for col in df1.columns}
         col_types2 = {col: self.detect_column_type(df2[col]) for col in df2.columns}
@@ -257,8 +233,37 @@ class FileComparerService:
     def normalize_value(self, value: Any) -> str:
         """Normalize values for comparison by removing extra spaces and converting to string"""
         if pd.isna(value):
-            return ''
+            return ""
         return str(value).strip().lower()
+
+    def _calculate_similarity(self, col1: str, col2: str, type1: str, type2: str, 
+                             field_categories: Dict[str, List[str]]) -> float:
+        """Calculate similarity score between two column names and their data types"""
+        # Get categories for both columns
+        cat1 = self._get_field_category(col1, field_categories)
+        cat2 = self._get_field_category(col2, field_categories)
+        
+        # Base string similarity
+        string_similarity = fuzz.ratio(col1.lower(), col2.lower()) / 100.0
+        
+        # Category match bonus
+        category_match = len(cat1.intersection(cat2)) > 0
+        category_bonus = self.CATEGORY_MATCH_BONUS if category_match else 0
+        
+        # Category mismatch penalty
+        category_mismatch = len(cat1) > 0 and len(cat2) > 0 and len(cat1.intersection(cat2)) == 0
+        category_penalty = self.CATEGORY_MISMATCH_PENALTY if category_mismatch else 0
+        
+        # Data type match/mismatch
+        type_match = type1 == type2
+        type_penalty = self.TYPE_MISMATCH_PENALTY if not type_match else 0
+        
+        # Special case: if one is date and other is not, severely penalize
+        if ('date' in (type1, type2)) and type1 != type2:
+            type_penalty = self.DATE_TYPE_MISMATCH_PENALTY
+        
+        # Final score (ensure between 0 and 1)
+        return max(0, min(1, string_similarity + category_bonus - category_penalty - type_penalty))
 
     def compare_files(self, file1_path, file2_path, fields):
         """Compare two files based on specified field mappings."""
